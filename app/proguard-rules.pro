@@ -1,0 +1,1 @@
+# keep default proguard rules (no reflection used)
