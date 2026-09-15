@@ -112,16 +112,24 @@ object Eval {
 
         // expr := term (('+' | '-') term | adjacency)*
         fun parseExpression(): Double {
-            var v = parseTerm()
+            var v = parseTerm().value
             while (true) {
                 when (val t = peek()) {
                     is OpTok -> when (t.c) {
-                        '+' -> { next(); v += parseTerm() }
-                        '-' -> { next(); v -= parseTerm() }
+                        '+' -> {
+                            next()
+                            val r = parseTerm()
+                            v += if (r.topPct) v * r.value else r.value
+                        }
+                        '-' -> {
+                            next()
+                            val r = parseTerm()
+                            v -= if (r.topPct) v * r.value else r.value
+                        }
                         else -> break
                     }
                     else -> {
-                        if (isOperandStart(t)) v *= parseTerm() else break
+                        if (isOperandStart(t)) v *= parseTerm().value else break
                     }
                 }
             }
@@ -129,26 +137,40 @@ object Eval {
         }
 
         // term := factor (('*' | '/' ) factor | adjacency)*, factor may take % and !
-        private fun parseTerm(): Double {
+        // tracks whether a trailing '%' was applied to the leading factor without any
+        // following * / (i.e. term is just "b%"), which lets parseExpression turn
+        // "a + b%" into "a + a*b/100".
+        private data class TermResult(val value: Double, val topPct: Boolean)
+
+        private fun parseTerm(): TermResult {
             var v = parseFactor()
+            var pctStep = false // last consumed op was a trailing '%' with no * / before it
             loop@ while (true) {
                 when (val t = peek()) {
                     is OpTok -> when (t.c) {
-                        '*' -> { next(); v *= parseFactor() }
+                        '%' -> { next(); v /= 100.0; pctStep = true }
+                        '*' -> { next(); pctStep = false; v *= parseFactorPct() }
                         '/' -> {
-                            next()
-                            val d = parseFactor()
+                            next(); pctStep = false
+                            val d = parseFactorPct()
                             if (d == 0.0) throw EvalException("Division by zero")
                             v /= d
                         }
                         else -> break@loop
                     }
                     else -> {
-                        if (isOperandStart(t)) v *= parseFactor() else break@loop
+                        if (isOperandStart(t)) { pctStep = false; v *= parseFactorPct() } else break@loop
                     }
                 }
             }
-            return v
+            return TermResult(v, pctStep)
+        }
+
+        // like parseFactor but a trailing '%' divides just this factor by 100
+        private fun parseFactorPct(): Double {
+            var f = parseFactor()
+            if (peek() is OpTok && (peek() as OpTok).c == '%') { next(); f /= 100.0 }
+            return f
         }
 
         private fun parseFactor(): Double {
@@ -157,14 +179,10 @@ object Eval {
                 is OpTok -> if (t.c == '-') { next(); v = -parseFactor() } else if (t.c == '+') { next(); v = parseFactor() } else throw EvalException("Unexpected '${render(t)}'")
                 else -> v = parsePower()
             }
-            // postfix: percentage and factorial
+            // postfix: factorial
             while (true) {
                 when (val p = peek()) {
-                    is OpTok -> when (p.c) {
-                        '%' -> { next(); v /= 100.0 }
-                        '!' -> { next(); v = factorial(v) }
-                        else -> break
-                    }
+                    is OpTok -> if (p.c == '!') { next(); v = factorial(v) } else break
                     else -> break
                 }
             }

@@ -19,7 +19,7 @@ optional white-on-black ↔ black-on-white toggle.
 | | |
 |---|---|
 | Arithmetic | `+  -  *  /  ^  !` |
-| Percent | `%` divides by 100, e.g. `50 + 3%` → `50.03` |
+| Percent | `a + b%` = `a + a*b/100`; `a * b%` = `a * b/100`, e.g. `50 + 3%` → `51.5`, `200 * 10%` → `20` |
 | Factorial | `!`, e.g. `5!` → `120` |
 | Constants | `pi  e  phi  tau  ans` (last result) |
 | Implicit multiply | `2pi` = `2*pi`, `2(3+4)` = `14` |
