@@ -141,14 +141,10 @@ class MainActivity : Activity() {
             setOnKeyListener { _, keyCode, event ->
                 if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
                 when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        if (histIndex > 0) { histIndex--; restoreHistory() }
-                        true
-                    }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (histIndex < history.size) { histIndex++; restoreHistory() }
-                        true
-                    }
+                    KeyEvent.KEYCODE_DPAD_UP -> { historyUp(); true }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> { historyDown(); true }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { moveCursor(-1); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { moveCursor(1); true }
                     else -> false
                 }
             }
@@ -161,26 +157,36 @@ class MainActivity : Activity() {
     private fun buildKeypad(): View {
         val keyPad = GridLayout(this).apply {
             columnCount = 6
-            rowCount = 4
+            rowCount = 5
             setPadding(dp(6), dp(6), dp(6), dp(6))
         }
-        data class Key(val label: String, val insert: String? = null, val backspace: Boolean = false, val eval: Boolean = false)
+        val INS = 0; val BSP = 1; val EVL = 2; val CLR = 3
+        val LEFT = 4; val RIGHT = 5; val UP = 6; val DOWN = 7
+        data class Key(val label: String, val type: Int, val insert: String? = null, val mono: Boolean = true)
 
         val keys = listOf(
-            Key("7", "7"), Key("8", "8"), Key("9", "9"),
-            Key("(", "("), Key(")", ")"), Key("DEL", backspace = true),
-            Key("4", "4"), Key("5", "5"), Key("6", "6"),
-            Key("/", "/"), Key("*", "*"), Key("^", "^"),
-            Key("1", "1"), Key("2", "2"), Key("3", "3"),
-            Key("+", "+"), Key("-", "-"), Key("%", "%"),
-            Key("0", "0"), Key(".", "."), Key("pi", "pi"),
-            Key("e", "e"), Key("sqrt", "sqrt("), Key("=", eval = true)
+            Key("7", INS, "7"), Key("8", INS, "8"), Key("9", INS, "9"),
+            Key("(", INS, "("), Key(")", INS, ")"), Key("DEL", BSP),
+            Key("4", INS, "4"), Key("5", INS, "5"), Key("6", INS, "6"),
+            Key("/", INS, "/"), Key("*", INS, "*"), Key("^", INS, "^"),
+            Key("1", INS, "1"), Key("2", INS, "2"), Key("3", INS, "3"),
+            Key("+", INS, "+"), Key("-", INS, "-"), Key("%", INS, "%"),
+            Key("0", INS, "0"), Key(".", INS, "."), Key("pi", INS, "pi"),
+            Key("e", INS, "e"), Key("sqrt", INS, "sqrt("), Key("=", EVL),
+            Key("\u2190", LEFT, mono = false), Key("\u2192", RIGHT, mono = false),
+            Key("\u2191", UP, mono = false), Key("\u2193", DOWN, mono = false),
+            Key("ans", INS, "ans"), Key("CLR", CLR)
         )
         keys.forEach { k ->
-            keyPad.addView(keyButton(k.label) {
-                when {
-                    k.backspace -> backspace()
-                    k.eval -> execute(input.text.toString())
+            keyPad.addView(keyButton(k.label, k.mono) {
+                when (k.type) {
+                    BSP -> backspace()
+                    EVL -> execute(input.text.toString())
+                    CLR -> clearEntry()
+                    LEFT -> moveCursor(-1)
+                    RIGHT -> moveCursor(1)
+                    UP -> historyUp()
+                    DOWN -> historyDown()
                     else -> insert(k.insert!!)
                 }
             })
@@ -188,11 +194,11 @@ class MainActivity : Activity() {
         return keyPad
     }
 
-    private fun keyButton(label: String, onClick: () -> Unit): Button {
+    private fun keyButton(label: String, mono: Boolean = true, onClick: () -> Unit): Button {
         val b = Button(this).apply {
             text = label
             textSize = 17f
-            typeface = Typeface.MONOSPACE
+            typeface = if (mono) Typeface.MONOSPACE else Typeface.DEFAULT
             setPadding(0, 0, 0, 0)
             setOnClickListener { onClick() }
             setOnTouchListener { v, ev ->
@@ -265,6 +271,29 @@ class MainActivity : Activity() {
         val text = input.editableText
         val s = input.selectionStart
         if (s > 0) text.delete(s - 1, s)
+    }
+
+    private fun clearEntry() {
+        input.setText("")
+    }
+
+    private fun moveCursor(delta: Int) {
+        val len = input.text.length
+        val s = input.selectionStart
+        val t = when {
+            s < 0 -> 0
+            delta < 0 -> s - 1
+            else -> s + 1
+        }
+        input.setSelection(t.coerceIn(0, len))
+    }
+
+    private fun historyUp() {
+        if (histIndex > 0) { histIndex--; restoreHistory() }
+    }
+
+    private fun historyDown() {
+        if (histIndex < history.size) { histIndex++; restoreHistory() }
     }
 
     private fun execute(raw: String) {

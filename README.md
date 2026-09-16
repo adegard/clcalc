@@ -10,6 +10,7 @@ optional white-on-black ↔ black-on-white toggle.
 ## Features
 
 - **Terminal UI** with scrollable history
+- **Arrow keys** on the keypad: `↑`/`↓` recall previous commands, `←`/`→` move the cursor to edit them
 - **Basic math only** — no matrices, colors, plots or base64
 - **On-screen keypad** plus a software keyboard for typing commands
 - Commands: `help`, `clear` / `cls`, `theme`, `version`, `about`
